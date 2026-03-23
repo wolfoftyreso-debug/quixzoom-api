@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { createClient } from '@supabase/supabase-js'
+import { sendPushToNearbyPhotographers } from '../services/notifications.service'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -99,6 +100,49 @@ missionsRouter.post('/', async (req: Request, res: Response) => {
 
   if (error) return res.status(500).json({ error: error.message })
   res.status(201).json({ mission: data })
+})
+
+// POST /api/missions/:id/publish — Publicera uppdrag och skicka push-notiser till fotografer i närheten
+missionsRouter.post('/:id/publish', async (req: Request, res: Response) => {
+  const { id } = req.params
+
+  const { data: mission, error } = await supabase
+    .from('missions')
+    .select('*')
+    .eq('id', id)
+    .single()
+
+  if (error || !mission) return res.status(404).json({ error: 'Mission not found' })
+
+  // Uppdatera status till open om den inte redan är det
+  if (mission.status !== 'open') {
+    await supabase
+      .from('missions')
+      .update({ status: 'open', updated_at: new Date().toISOString() })
+      .eq('id', id)
+  }
+
+  // Beräkna notis-radius: 5x uppdragets radius (i km), minimum 5 km
+  const notifRadiusKm = mission.location_radius_meters
+    ? Math.max((mission.location_radius_meters / 1000) * 5, 5)
+    : 10
+
+  const pushResult = await sendPushToNearbyPhotographers(
+    id,
+    mission.location_lat,
+    mission.location_lng,
+    notifRadiusKm,
+    {
+      title: '📍 Nytt uppdrag',
+      body: `${mission.title}${mission.reward_amount ? ` — €${mission.reward_amount}` : ''}`,
+      data: { missionId: id, type: 'new_mission' },
+    }
+  )
+
+  res.json({
+    mission: { id, status: 'open' },
+    notifications: pushResult,
+  })
 })
 
 // DELETE /api/missions/:id — Cancel mission
