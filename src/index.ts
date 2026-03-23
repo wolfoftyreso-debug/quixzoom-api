@@ -5,6 +5,7 @@ import { missionsRouter } from './routes/missions'
 import { webhooksRouter } from './routes/webhooks'
 import { adminRouter } from './routes/admin'
 import { healthRouter } from './routes/health'
+import { billingRouter } from './routes/billing'
 
 dotenv.config()
 
@@ -17,6 +18,7 @@ app.use(express.json())
 app.use('/health', healthRouter)
 app.use('/api/missions', missionsRouter)
 app.use('/api/admin', adminRouter)
+app.use('/api/billing', billingRouter)
 app.use('/webhooks', webhooksRouter)
 
 app.listen(PORT, () => console.log(`quiXzoom API running on :${PORT}`))
