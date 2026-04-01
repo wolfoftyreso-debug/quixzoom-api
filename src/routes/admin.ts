@@ -75,6 +75,50 @@ adminRouter.post('/payouts/reject/:id', async (req: Request, res: Response) => {
   res.json({ payout: data })
 })
 
+// GET /api/admin/submissions — List submissions with status filter
+adminRouter.get('/submissions', async (req: Request, res: Response) => {
+  const { status = 'pending', mission_id } = req.query
+
+  let query = supabase
+    .from('mission_submissions')
+    .select('*, missions(title, reward_amount, reward_currency), profiles!mission_submissions_photographer_id_fkey(full_name, email, push_token)')
+    .order('submitted_at', { ascending: false })
+
+  if (status && status !== 'all') {
+    query = query.eq('status', status as string)
+  }
+  if (mission_id) {
+    query = query.eq('mission_id', mission_id as string)
+  }
+
+  const { data, error } = await query.limit(100)
+  if (error) return res.status(500).json({ error: error.message })
+  res.json({ submissions: data })
+})
+
+// POST /api/admin/submissions/:id/approve — Approve submission + credit wallet
+adminRouter.post('/submissions/:id/approve', async (req: Request, res: Response) => {
+  const { id } = req.params
+  const { payout_amount } = req.body
+
+  // Use service-role admin id (system approval)
+  // For real admin tracking, pass admin user_id from auth header; here we use a sentinel
+  const admin_id = req.headers['x-admin-id'] as string | undefined
+
+  if (!admin_id) {
+    return res.status(400).json({ error: 'x-admin-id header required' })
+  }
+
+  const { data, error } = await supabase.rpc('approve_submission', {
+    p_submission_id: id,
+    p_admin_id: admin_id,
+    p_payout_amount: payout_amount != null ? Number(payout_amount) : null,
+  })
+
+  if (error) return res.status(500).json({ error: error.message })
+  return res.json(data)
+})
+
 // GET /api/admin/photographers — List all photographers
 adminRouter.get('/photographers', async (_: Request, res: Response) => {
   const { data, error } = await supabase
