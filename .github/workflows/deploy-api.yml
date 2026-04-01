@@ -46,7 +46,7 @@ jobs:
       - name: Force ECS redeploy
         run: |
           aws ecs update-service \
-            --cluster hypbit \
+            --cluster wavult \
             --service quixzoom-api \
             --force-new-deployment \
             --region eu-north-1
